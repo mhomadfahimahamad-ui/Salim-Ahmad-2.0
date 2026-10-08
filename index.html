@@ -1,1 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Salim Ahmad 2.0 — Claim Documents Folder Generator</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#eef2f7;color:#182235}
+header{background:linear-gradient(135deg,#111827,#25344f);color:#fff;padding:18px 20px;position:sticky;top:0;z-index:20;box-shadow:0 4px 20px #0002}
+h1{margin:0;font-size:24px}.muted{opacity:.72;font-size:13px}.wrap{max-width:1450px;margin:auto;padding:16px}
+.panel{background:#fff;border:1px solid #dce3ed;border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 4px 16px #00000008}
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.btn,select,input{font:inherit}.btn{border:0;border-radius:9px;padding:9px 12px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer}.btn.gray{background:#e9eef6;color:#172033}.btn.green{background:#087443}.btn.red{background:#c62828}.btn:disabled{opacity:.45;cursor:not-allowed}
+.mode{display:flex;gap:10px;align-items:center}.mode label{padding:9px 12px;border:1px solid #ccd5e3;border-radius:9px;cursor:pointer}.drop{border:2px dashed #9aabc3;border-radius:12px;padding:24px;text-align:center;margin-top:12px;background:#f8fafc}.drop.drag{background:#edf5ff;border-color:#2563eb}
+.add{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.add input{flex:1;min-width:220px;border:1px solid #ccd5e3;border-radius:9px;padding:9px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:11px}.section h2{font-size:17px;margin:0}.sectionhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.card{border:1px solid #d9e0ea;border-radius:11px;background:#fff;overflow:hidden;position:relative}.preview{height:180px;background:#eef2f7;display:flex;align-items:center;justify-content:center;overflow:hidden}.preview canvas,.preview img{max-width:100%;max-height:100%;object-fit:contain}.pdfmark{font-size:32px;font-weight:900;color:#c62828}.body{padding:9px}.name{width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px}.mini{font-size:11px;color:#64748b;margin:5px 0}.actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.actions button{font-size:11px;padding:6px 7px}
+.check{position:absolute;left:8px;top:8px;z-index:3}.tag{position:absolute;right:7px;top:7px;background:#0f766e;color:#fff;padding:4px 6px;border-radius:20px;font-size:10px}.warn{background:#9a6500}.bar{height:7px;background:#e6ebf2;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:#2563eb;width:0}
+.floating{position:sticky;bottom:10px;z-index:15;display:none;background:#111827;color:#fff;border-radius:13px;padding:10px;box-shadow:0 8px 28px #0005;margin-top:12px}.floating.show{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.modal{position:fixed;inset:0;background:#000b;display:none;z-index:50;align-items:center;justify-content:center;padding:20px}.modal.show{display:flex}.modalbox{width:min(1100px,96vw);height:min(90vh,850px);background:#fff;border-radius:15px;display:flex;flex-direction:column;overflow:hidden}.modalhead{padding:10px 13px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center}.workspace{flex:1;overflow:auto;background:#252b35;display:flex;align-items:center;justify-content:center;padding:20px}.workspace img,.workspace canvas{max-width:none;transform-origin:center}.modalfoot{padding:10px;border-top:1px solid #ddd;display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.preview{height:140px}h1{font-size:20px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs" type="module"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+<header><div class="wrap"><h1>Salim Ahmad 2.0</h1><div class="muted">Smart Claim Documents Folder Generator • OCR naming • 6-section workflow • PDF/JPEG export</div></div></header>
+<div class="wrap">
+<div class="panel">
+  <div class="toolbar">
+    <strong>Mode:</strong>
+    <div class="mode"><label><input type="radio" name="mode" value="CASHLESS"> CASHLESS</label><label><input type="radio" name="mode" value="NON-CASHLESS"> NON-CASHLESS</label></div>
+    <label><input id="showLabel" type="checkbox" checked> Show Label</label>
+    <button class="btn gray" id="allSelect">Select All</button><button class="btn gray" id="detectNames">Detect Names (OCR)</button>
+    <button class="btn" id="downloadPdf" disabled>Download PDF (Complete File)</button>
+    <button class="btn" id="downloadJpg" disabled>Download JPEGs</button>
+    <button class="btn green" id="downloadNamedPdfs" disabled>Download All PDFs</button>
+  </div>
+  <div class="drop" id="drop"><b>Click or Drag Files Here (PDF / JPG / PNG / WEBP)</b><br><span class="muted">PDFs are rendered in your browser; OCR checks only the first page of each document for faster naming. You can correct names manually.</span><br><button class="btn" id="choose">Choose Files</button><input id="files" type="file" accept=".pdf,image/*" multiple hidden></div>
+  <div class="add"><input id="newLabel" placeholder="Add New Label, e.g. Survey Report"><select id="after"></select><button class="btn gray" id="addLabel">Add To List</button></div>
+  <div class="muted" id="status">0 documents</div><div class="bar"><i id="progress"></i></div>
+</div>
 
+<div id="sections"></div>
+<div id="floating" class="floating"></div>
+</div>
+
+<div class="modal" id="modal"><div class="modalbox"><div class="modalhead"><b>Advanced Document Workspace</b><button class="btn red" id="closeModal">Close ✕</button></div><div class="workspace" id="workspace"></div><div class="modalfoot"><button class="btn" id="zin">Zoom In 🔍+</button><button class="btn gray" id="zout">Zoom Out 🔍−</button><button class="btn gray" id="rot">Rotate ↻</button><button class="btn gray" id="crop">Crop Document ✂</button><button class="btn gray" id="reset">Reset View</button><button class="btn green" id="saveClose">Save & Close Workspace</button></div></div></div>
+
+<script type="module">
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs";
+
+const $=id=>document.getElementById(id);
+const categories=["Main Documents","Previous Claim Photos","Break-In Photos","Crash Photos","Under Repair Photos","Re-Inspection Photos"];
+const short=["Main","Prev Claim","Break-In","Crash","Repair","Re-Ins"];
+const state={items:[],labels:["Survey Report","Claim Form","Estimate","Final Bill","Invoice","RC","Driving Licence","Insurance Policy","FIR","Permit","Fitness Certificate","Previous Claim","Break-In","Crash Photos","Under Repair","Re-Inspection"],custom:[],mode:""};
+let current=null, zoom=1, angle=0;
+
+const clean=s=>(s||"").replace(/[<>:"/\\\\|?*\\x00-\\x1F]/g," ").replace(/\\s+/g," ").trim().slice(0,100);
+function guess(text,fallback){
+ const t=(text||"").replace(/\\s+/g," ").trim();
+ const rules=[
+  [/final\\s+bill|repair\\s+bill/i,"Final Bill"],[/tax\\s+invoice|invoice/i,"Invoice"],[/estimate|quotation/i,"Estimate"],
+  [/claim\\s*(form|intimation)?/i,"Claim Form"],[/insurance\\s*(policy|certificate)/i,"Insurance Policy"],
+  [/driving\\s*licen[cs]e/i,"Driving Licence"],[/registration\\s*certificate|vehicle\\s*registration/i,"RC"],
+  [/first\\s*information\\s*report|\\bFIR\\b/i,"FIR"],[/permit/i,"Permit"],[/fitness\\s*certificate/i,"Fitness Certificate"],
+  [/previous\\s*claim/i,"Previous Claim"],[/break[- ]?in/i,"Break-In"],[/under\\s*repair/i,"Under Repair"],[/re[- ]?inspection/i,"Re-Inspection"]
+ ];
+ for(const [r,n] of rules)if(r.test(t))return [n,.95];
+ const lines=(text||"").split(/\\n+/).map(clean).filter(x=>x.length>2&&x.length<70);
+ return lines.length?[lines[0],.55]:[fallback,.15];
+}
+function makeId(){return crypto.randomUUID?.()||Date.now()+"-"+Math.random()}
+function fileUrl(f){return URL.createObjectURL(f)}
+
+async function renderPdf(file){
+ const data=await file.arrayBuffer(), pdf=await pdfjsLib.getDocument({data}).promise, out=[];
+ for(let p=1;p<=pdf.numPages;p++){
+   const page=await pdf.getPage(p), vp=page.getViewport({scale:1.4}), c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;
+   await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+   const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));
+   out.push({blob,canvas:c,page:p});
+ }
+ return out;
+}
+async function ocrBlob(blob,item){
+ try{
+  const r=await Tesseract.recognize(blob,"eng",{logger:m=>{if(m.status==="recognizing text"){$("status").textContent=`OCR: ${item.file.name} ${Math.round((m.progress||0)*100)}%`}}});
+  return r.data.text||"";
+ }catch(e){return ""}
+}
+async function addFiles(fs){
+  const incoming=[];
+  for(const file of fs){
+    if(!(file.type==="application/pdf"||file.type.startsWith("image/")))continue;
+    if(file.type==="application/pdf"){
+      const pages=await renderPdf(file);
+      pages.forEach((pg,idx)=>incoming.push({
+        id:makeId(),file,blob:pg.blob,src:URL.createObjectURL(pg.blob),
+        name:clean(file.name.replace(/\.pdf$/i,""))||"Document",
+        baseName:clean(file.name.replace(/\.pdf$/i,""))||"Document",
+        cat:file._cat??0,rot:0,selected:false,confidence:0,auto:false,page:idx+1,
+        totalPages:pages.length,ocrDone:false
+      }));
+    }else{
+      incoming.push({
+        id:makeId(),file,blob:file,src:fileUrl(file),
+        name:clean(file.name.replace(/\.[^.]+$/,""))||"Document",
+        baseName:clean(file.name.replace(/\.[^.]+$/,""))||"Document",
+        cat:file._cat??0,rot:0,selected:false,confidence:0,auto:false,page:1,totalPages:1,ocrDone:false
+      });
+    }
+  }
+  if(!incoming.length)return;
+  state.items.push(...incoming);
+  render();
+  await autoName(incoming);
+  render();
+}
+async function autoName(items=state.items){
+  const firstByFile=new Map();
+  for(const it of items){ if(!firstByFile.has(it.file)) firstByFile.set(it.file,it); }
+  const firstItems=[...firstByFile.values()]; let done=0;
+  $("progress").style.width="0%";
+  for(const first of firstItems){
+    const text=await ocrBlob(first.blob,first);
+    const [n,c]=guess(text,first.baseName);
+    const sameFile=items.filter(x=>x.file===first.file);
+    sameFile.forEach(it=>{ it.name=it.totalPages>1?`${n} - Page ${it.page}`:n; it.confidence=c; it.auto=c>=.75; it.ocrDone=true; });
+    done++; $("progress").style.width=Math.round(done/firstItems.length*100)+"%";
+    $("status").textContent=`Document naming: ${done}/${firstItems.length}`;
+  }
+  $("status").textContent=`${state.items.length} document/page(s) ready. OCR checked ${firstItems.length} document(s).`;
+}
+function refreshAfter(){ $("after").innerHTML=state.labels.map((x,i)=>`<option value="${i}">${x}</option>`).join("")}
+function render(){
+ refreshAfter(); const wrap=$("sections");wrap.innerHTML="";
+ categories.forEach((cat,ci)=>{
+  const box=document.createElement("div");box.className="panel section";
+  const count=state.items.filter(x=>x.cat===ci).length;
+  box.innerHTML=`<div class="sectionhead"><h2>${cat} <span class="muted">(${count})</span></h2><div class="toolbar"><button class="btn gray" data-sel="${ci}">Select All</button><button class="btn gray" data-up="${ci}">Upload Here</button><button class="btn" data-pdf="${ci}">Download PDF</button><button class="btn green" data-jpg="${ci}">Download JPEG</button><input type="file" id="sec${ci}" accept=".pdf,image/*" multiple hidden></div></div><div class="grid" id="grid${ci}"></div>`;
+  wrap.appendChild(box);
+  box.querySelector(`[data-up="${ci}"]`).onclick=()=>document.getElementById("sec"+ci).click();
+  box.querySelector("#sec"+ci).onchange=e=>addFiles([...e.target.files].map(f=>Object.assign(f,{_cat:ci}))).then(()=>{state.items.slice(-e.target.files.length).forEach(x=>x.cat=ci);render()});
+  box.querySelector(`[data-sel="${ci}"]`).onclick=()=>{state.items.filter(x=>x.cat===ci).forEach(x=>x.selected=true);render()};
+  box.querySelector(`[data-pdf="${ci}"]`).onclick=()=>exportPdf(state.items.filter(x=>x.cat===ci),`Salim_Ahmad_2.0_${short[ci]}.pdf`);
+  box.querySelector(`[data-jpg="${ci}"]`).onclick=()=>exportZip(state.items.filter(x=>x.cat===ci),`Salim_Ahmad_2.0_${short[ci]}`);
+  const g=box.querySelector(`#grid${ci}`);
+  state.items.filter(x=>x.cat===ci).forEach(it=>{
+   const card=document.createElement("div");card.className="card";
+   card.innerHTML=`<input class="check" type="checkbox" ${it.selected?"checked":""}><span class="tag ${it.confidence<.75?"warn":""}">${it.confidence>=.75?"Auto":"Manual"}</span><div class="preview">${it.src?`<img src="${it.src}" style="transform:rotate(${it.rot}deg)">`:""}</div><div class="body"><input class="name" value="${it.name.replace(/"/g,"&quot;")}"><div class="mini">${it.file.name}${it.page>1?" • page "+it.page:""}</div><div class="actions"><button class="btn gray" data="main">Main</button><button class="btn gray" data="rot">Rot</button><button class="btn gray" data="dup">DUP</button><button class="btn gray" data="crop">Crop</button><button class="btn red" data="del">DEL</button><button class="btn" data="open">Workspace</button></div></div>`;
+   card.querySelector(".check").onchange=e=>{it.selected=e.target.checked;renderFloat()};
+   card.querySelector(".name").oninput=e=>it.name=clean(e.target.value)||"Document";
+   card.querySelector('[data="rot"]').onclick=()=>{it.rot=(it.rot+90)%360;render()};
+   card.querySelector('[data="dup"]').onclick=()=>{state.items.push({...it,id:makeId(),selected:false});render()};
+   card.querySelector('[data="del"]').onclick=()=>{state.items=state.items.filter(x=>x.id!==it.id);render()};
+   card.querySelector('[data="open"]').onclick=()=>openWorkspace(it);
+   card.querySelector('[data="crop"]').onclick=()=>openWorkspace(it,true);
+   card.querySelector('[data="main"]').onclick=()=>{it.cat=0;render()};
+   g.appendChild(card);
+  });
+ });
+ $("downloadPdf").disabled=!state.items.length;$("downloadJpg").disabled=!state.items.length;$("downloadNamedPdfs").disabled=!state.items.length;
+ renderFloat();
+}
+function renderFloat(){
+ const sel=state.items.filter(x=>x.selected), f=$("floating"); if(!sel.length){f.classList.remove("show");return}
+ f.classList.add("show");f.innerHTML=`<b>${sel.length} Selected</b>${short.map((x,i)=>`<button class="btn gray" data-c="${i}">${x}</button>`).join("")}<button class="btn gray" data="left">Rot Left ↶</button><button class="btn gray" data="right">Rot Right ↷</button><button class="btn" data="pdf">Download In PDF</button><button class="btn green" data="zip">Download In JPEG</button><button class="btn red" data="delete">Delete</button>`;
+ short.forEach((_,i)=>f.querySelector(`[data-c="${i}"]`).onclick=()=>{sel.forEach(x=>x.cat=i);render()});
+ f.querySelector('[data="left"]').onclick=()=>{sel.forEach(x=>x.rot=(x.rot+270)%360);render()};
+ f.querySelector('[data="right"]').onclick=()=>{sel.forEach(x=>x.rot=(x.rot+90)%360);render()};
+ f.querySelector('[data="pdf"]').onclick=()=>exportPdf(sel,"Salim_Ahmad_2.0_Selected.pdf");
+ f.querySelector('[data="zip"]').onclick=()=>exportZip(sel,"Salim_Ahmad_2.0_Selected");
+ f.querySelector('[data="delete"]').onclick=()=>{state.items=state.items.filter(x=>!x.selected);render()};
+}
+async function canvasFor(it){
+ const img=new Image();img.src=it.src;await new Promise(r=>img.onload=r);
+ const c=document.createElement("canvas"),rad=it.rot*Math.PI/180,w=img.naturalWidth,h=img.naturalHeight;
+ const swap=it.rot%180!==0;c.width=swap?h:w;c.height=swap?w:h;const x=c.getContext("2d");x.translate(c.width/2,c.height/2);x.rotate(rad);x.drawImage(img,-w/2,-h/2);return c;
+}
+async function exportPdf(items,name){
+ if(!items.length)return;
+ const {jsPDF}=window.jspdf;
+ const pdf=new jsPDF({unit:"pt",format:"a4",compress:true});
+ pdf.setProperties({title:name.replace(/\.pdf$/i,""),subject:"Salim Ahmad 2.0 Claim Document"});
+ let first=true;
+ for(const it of items){
+   const c=await canvasFor(it),pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+   const marginX=24,top=48,bottom=20,maxW=pw-marginX*2,maxH=ph-top-bottom;
+   const scale=Math.min(maxW/c.width,maxH/c.height),w=c.width*scale,h=c.height*scale;
+   if(!first)pdf.addPage(); first=false;
+   pdf.setFillColor(17,24,39); pdf.roundedRect(18,12,pw-36,25,5,5,"F");
+   pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(10);
+   pdf.text(clean(it.name)||"Document",28,29);
+   pdf.setTextColor(80,90,105); pdf.setFont("helvetica","normal"); pdf.setFontSize(7);
+   pdf.text(`Salim Ahmad 2.0 • ${it.file.name}${it.totalPages>1?` • Page ${it.page}/${it.totalPages}`:""}`,28,ph-8);
+   pdf.addImage(c.toDataURL("image/jpeg",.88),"JPEG",(pw-w)/2,top+(maxH-h)/2,w,h);
+ }
+ pdf.save(name);
+}
+async function exportZip(items,name){
+ const z=new JSZip(),used=new Map();
+ for(const it of items){
+   const c=await canvasFor(it),blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.92));
+   const base=clean(it.name)||"Document",count=(used.get(base)||0)+1;used.set(base,count);
+   const suffix=it.totalPages>1?`_Page_${it.page}`:(count>1?`_${count}`:"");
+   z.file(`${base}${suffix}.jpg`,blob);
+ }
+ const b=await z.generateAsync({type:"blob"});saveBlob(b,name+".zip");
+}
+function saveBlob(b,name){const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;a.click()}
+async function exportNamedPdfs(){
+ const groups={};
+ state.items.forEach(x=>{const key=clean(x.name)||"Document";(groups[key]??=[]).push(x);});
+ const entries=Object.entries(groups);
+ for(let i=0;i<entries.length;i++){
+   const [n,arr]=entries[i]; $("status").textContent=`Creating PDF ${i+1}/${entries.length}: ${n}`;
+   await exportPdf(arr,clean(n)+".pdf");
+ }
+ $("status").textContent=`Created ${entries.length} named PDF file(s).`;
+}
+async function openWorkspace(it,crop=false){
+ current=it;zoom=1;angle=it.rot;$("modal").classList.add("show");const w=$("workspace");w.innerHTML="";const c=await canvasFor(it);c.id="workCanvas";c.style.transform=`scale(${zoom}) rotate(0deg)`;w.appendChild(c);if(crop)alert("Crop mode: use the browser zoom/preview for now; Save & Close keeps rotation and naming.");
+}
+$("closeModal").onclick=()=>$("modal").classList.remove("show");
+$("saveClose").onclick=()=>$("modal").classList.remove("show");
+$("zin").onclick=()=>{zoom=Math.min(3,zoom+.05);$("workCanvas").style.transform=`scale(${zoom})`};
+$("zout").onclick=()=>{zoom=Math.max(.2,zoom-.05);$("workCanvas").style.transform=`scale(${zoom})`};
+$("rot").onclick=()=>{if(current){current.rot=(current.rot+90)%360;openWorkspace(current)}};
+$("reset").onclick=()=>{zoom=1;if(current){current.rot=0;openWorkspace(current)}};
+$("choose").onclick=()=>$("files").click();$("files").onchange=e=>addFiles([...e.target.files]);$("drop").ondragover=e=>{e.preventDefault();$("drop").classList.add("drag")};$("drop").ondragleave=()=>$("drop").classList.remove("drag");$("drop").ondrop=e=>{e.preventDefault();$("drop").classList.remove("drag");addFiles([...e.dataTransfer.files])};
+$("detectNames").onclick=async()=>{
+  if(!state.items.length){alert("Please upload documents first.");return;}
+  $("detectNames").disabled=true;
+  try{await autoName(state.items);render();}finally{$("detectNames").disabled=false;}
+};
+$("addLabel").onclick=()=>{const n=clean($("newLabel").value);if(!n)return;const pos=+$("after").value+1;state.labels.splice(pos,0,n);$("newLabel").value="";render()};
+$("allSelect").onclick=()=>{state.items.forEach(x=>x.selected=true);render()};
+$("downloadPdf").onclick=()=>exportPdf(state.items,"Salim_Ahmad_2.0_Complete_File.pdf");
+$("downloadJpg").onclick=()=>exportZip(state.items,"Salim_Ahmad_2.0_Complete_File");
+$("downloadNamedPdfs").onclick=exportNamedPdfs;
+render();
+</script>
+</body>
+</html>
